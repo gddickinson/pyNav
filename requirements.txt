@@ -1,0 +1,4 @@
+PyQt6>=6.5.0
+requests>=2.31.0
+pynmea2>=1.19.0
+pyserial>=3.5

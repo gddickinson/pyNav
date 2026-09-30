@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+venv/
+# third-party binary (90 MB) - download: see local_osm_readme.md
+map_tools/planetiler.jar
+*.mbtiles
+*.osm.pbf
