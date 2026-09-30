@@ -2,7 +2,7 @@
 
 A modular, feature-rich navigation software built with Python and PyQt6 that provides GPS tracking, route planning, mapping, and points of interest management.
 
-![PyNav Screenshot](https://via.placeholder.com/800x500/4CAF50/FFFFFF?text=PyNav+Navigation+Software)
+![PyNav: a route from the Texas Capitol to Zilker Park with turn-by-turn directions](docs/images/pynav-main.jpg)
 
 ## Features
 

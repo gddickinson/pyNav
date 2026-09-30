@@ -726,8 +726,8 @@ class NavigationMapWidget(QWidget):
             lat_span = max_lat - min_lat
             lon_span = max_lon - min_lon
 
-            # Calculate zoom level to fit bounds
-            for zoom in range(1, 20):
+            # Closest zoom level at which the bounds still fit (search from zoomed-in outwards)
+            for zoom in range(19, 0, -1):
                 # Calculate viewport at this zoom level
                 meters_per_pixel = (156543.03392 * math.cos(math.radians(self.center_lat)) /
                                    (2 ** zoom))
@@ -738,10 +738,10 @@ class NavigationMapWidget(QWidget):
                 viewport_lon_span = self.width() * lon_degrees_per_pixel
 
                 if viewport_lat_span >= lat_span and viewport_lon_span >= lon_span:
-                    self.zoom_level = max(1, zoom - 1)  # Back off one level for padding
+                    self.zoom_level = zoom  # bounds already include 10% padding
                     break
             else:
-                self.zoom_level = 19  # Max zoom if nothing fits
+                self.zoom_level = 1  # route spans more than the whole world view
 
             self.calculate_viewport_bounds()
             self.update()
