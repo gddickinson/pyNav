@@ -7,3 +7,4 @@ venv/
 map_tools/planetiler.jar
 *.mbtiles
 *.osm.pbf
+site/

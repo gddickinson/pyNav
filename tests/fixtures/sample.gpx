@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic GPX for the parser tests: namespaced GPX 1.1, a route and a track (times with and without a zone). -->
+<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="45.0" lon="7.0"><name>A waypoint</name></wpt>
+  <rte>
+    <name>Planned</name>
+    <rtept lat="45.0000" lon="7.0000"></rtept>
+    <rtept lat="45.0100" lon="7.0050"></rtept>
+    <rtept lat="45.0200" lon="7.0000"/>
+  </rte>
+  <trk>
+    <name>Walk</name>
+    <trkseg>
+      <trkpt lat="45.00001" lon="7.00002"><ele>300.5</ele><time>2024-05-01T10:00:00Z</time></trkpt>
+      <trkpt lat="45.00300" lon="7.00160"><ele>301</ele><time>2024-05-01T10:00:30.5Z</time></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat='45.0100' lon='7.0049'><time>2024-05-01T10:02:00</time></trkpt>
+      <trkpt lat="45.0150" lon="7.0030"><ele>299</ele><time>2024-05-01T12:03:00+02:00</time></trkpt>
+      <trkpt lon="7.0001" lat="45.0199"><time>2024-05-01T10:04:10Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

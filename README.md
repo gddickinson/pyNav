@@ -58,6 +58,38 @@ A modular, feature-rich navigation software built with Python and PyQt6 that pro
 - **Data Export**: Routes and tracks in standard formats
 - **Import Capabilities**: Load existing GPS and mapping data
 
+## Web interface
+
+A web companion to the desktop app: **https://gddickinson.github.io/pyNav/** (static site) or locally with
+`python run_web.py`.
+
+- **Replay**: open a GPX or NMEA log and play it back on a map with PyNav's navigation maths: distance travelled,
+  speed and altitude profiles, the GPS accuracy estimate, and turn-by-turn route following (the RoutingEngine's rule)
+  along a straight-line route with distance to the next step, remaining distance and ETA. On the static site the file
+  is read in your browser and never uploaded. The demo drive is **synthetic** (`scripts/make_demo_track.py`).
+- **Nav maths**: distance and bearing, straight-line routes, the GPS accuracy estimate, an NMEA checksum checker and
+  map-tile coordinates.
+- **Live GPS** (local app only): read a USB/serial GPS receiver (NMEA via pyserial) or the iPhone tracking server
+  (`iphoneTracking/macbook_server.py`) and watch the fix update.
+
+Map tiles are off by default; switching them on loads OpenStreetMap tiles (© OpenStreetMap contributors), as the
+desktop app does. The maths lives in `navmath/` (no Qt), which the desktop app imports; the static site runs a
+JavaScript port of it (`web/static/nav_engine.js`, `nmea_engine.js`), checked against the Python on the same inputs
+by `node web/static/nav_engine.test.mjs`.
+
+### Run the web app
+
+```bash
+pip install -r requirements-web.txt
+python run_web.py                     # http://127.0.0.1:8179
+python -m pytest -q tests             # API, navmath, JS-vs-Python and regression tests
+python scripts/build_static.py        # static site in site/ (published by .github/workflows/pages.yml)
+```
+
+![Home](docs/img/home.png)
+![Replay of the synthetic demo drive](docs/img/replay.png)
+![Navigation maths](docs/img/tools.png)
+
 ## Installation
 
 ### Prerequisites
