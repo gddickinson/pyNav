@@ -17,6 +17,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QDateTime
 from PyQt6.QtGui import QFont, QColor, QPalette
 
 from navigation.utils.logger import setup_logger
+from navmath.nmea import format_rmc
 
 logger = setup_logger(__name__)
 
@@ -637,9 +638,12 @@ class GPSTrackerDialog(QDialog):
                     'data_rate': '1 Hz'
                 })
 
-                # Add simulated raw data for GPS sources
+                # Show the current fix as an RMC sentence (re-encoded from the fix, not the device's raw line)
                 if 'GPS' in source:
-                    nmea_sample = f"$GPRMC,{datetime.now().strftime('%H%M%S')}.000,A,{location_data.get('latitude', 0):.6f},N,{location_data.get('longitude', 0):.6f},W,{location_data.get('speed', 0):.1f},{location_data.get('heading', 0):.1f},{datetime.now().strftime('%d%m%y')},,,A*7C"
+                    nmea_sample = format_rmc(location_data['latitude'], location_data['longitude'],
+                                             location_data.get('timestamp') or time.time(),
+                                             speed_ms=location_data.get('speed') or 0,
+                                             course=location_data.get('heading') or 0)
                     self.raw_data_widget.add_raw_data(nmea_sample)
 
             else:

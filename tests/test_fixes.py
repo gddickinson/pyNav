@@ -37,3 +37,24 @@ def test_offline_route_arrives_at_the_destination():
     assert all(not s.instruction.startswith("Arrive") for s in steps[:-1])
     assert sum(s.distance_to_next for s in steps) == pytest.approx(r["distance"])
 
+
+def test_macbook_server_nmea_checksum_is_valid(tmp_path, monkeypatch):
+    sys.path.insert(0, str(ROOT / "iphoneTracking"))
+    import macbook_server
+    monkeypatch.chdir(tmp_path)
+    macbook_server.NavigationProcessor().write_nmea_format(
+        {"timestamp": 1700000000, "latitude": -33.8568, "longitude": 151.2153, "altitude": 12.0})
+    line = (tmp_path / "navigation_nmea.txt").read_text().strip()
+    msg = pynmea2.parse(line, check=True)
+    assert msg.latitude == pytest.approx(-33.8568, abs=1e-5)
+    assert msg.longitude == pytest.approx(151.2153, abs=1e-5)
+
+
+
+@pytest.mark.parametrize("lat,lon", [(51.4779, -0.0015), (-33.8568, 151.2153), (40.0, -73.99999999)])
+def test_generated_rmc_is_valid_nmea(lat, lon):
+    """The GPS dialog's NMEA line used decimal degrees, always N/W and a fixed checksum."""
+    from navmath.nmea import format_rmc
+    msg = pynmea2.parse(format_rmc(lat, lon, 1700000000, speed_ms=10.0, course=270.0), check=True)
+    assert msg.latitude == pytest.approx(lat, abs=1e-5) and msg.longitude == pytest.approx(lon, abs=1e-5)
+    assert float(msg.spd_over_grnd) == pytest.approx(10.0 / (1852 / 3600), abs=0.05)

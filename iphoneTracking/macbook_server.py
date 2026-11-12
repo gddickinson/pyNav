@@ -10,6 +10,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
 import socketserver
 import math
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from navmath.nmea import format_gga  # noqa: E402
 
 class ProductionSensorDatabase:
     """Enhanced database for GPS + Motion sensor data"""
@@ -551,27 +555,17 @@ class NavigationProcessor:
     def write_nmea_format(self, nav_data):
         """Write NMEA GPS sentences"""
         try:
-            # Generate GPGGA sentence
-            lat = abs(nav_data['latitude'])
-            lat_deg = int(lat)
-            lat_min = (lat - lat_deg) * 60
-            lat_dir = 'N' if nav_data['latitude'] >= 0 else 'S'
-            
-            lon = abs(nav_data['longitude'])
-            lon_deg = int(lon)
-            lon_min = (lon - lon_deg) * 60
-            lon_dir = 'E' if nav_data['longitude'] >= 0 else 'W'
-            
-            timestamp_str = time.strftime('%H%M%S', time.gmtime(nav_data['timestamp']))
-            
-            gpgga = f"$GPGGA,{timestamp_str},{lat_deg:02d}{lat_min:06.3f},{lat_dir},{lon_deg:03d}{lon_min:06.3f},{lon_dir},1,08,1.0,{nav_data['altitude']:.1f},M,0.0,M,,*00\n"
-            
+            # Generate GPGGA sentence (valid checksum, hemispheres from the sign)
+            gpgga = format_gga(nav_data['latitude'], nav_data['longitude'], nav_data['timestamp'],
+                               altitude=nav_data.get('altitude') or 0, fix_quality=1, satellites=8,
+                               hdop=1.0, decimals=3) + "\n"
+
             with open('navigation_nmea.txt', 'w') as f:
                 f.write(gpgga)
-                
+
         except Exception as e:
             print(f"NMEA write error: {e}")
-    
+
     def append_csv_log(self, nav_data):
         """Append to CSV log for historical tracking"""
         try:
