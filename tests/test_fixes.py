@@ -25,3 +25,15 @@ def test_serial_gps_speed_is_metres_per_second():
     loc = gps.get_location()
     assert loc["speed"] == pytest.approx(22.4 * 1852 / 3600)
 
+
+def test_offline_route_arrives_at_the_destination():
+    """The 'Arrive' instruction belongs at the destination, not at the start of the last leg."""
+    from navigation.core.routing_engine import OfflineRoutingService
+    r = OfflineRoutingService().calculate_route(51.5, -0.12, 51.52, -0.10, waypoints=[(51.51, -0.11)])
+    steps = r["steps"]
+    assert steps[-1].instruction == "Arrive at destination"
+    assert (steps[-1].latitude, steps[-1].longitude) == (51.52, -0.10)
+    assert steps[-1].distance_to_next == 0
+    assert all(not s.instruction.startswith("Arrive") for s in steps[:-1])
+    assert sum(s.distance_to_next for s in steps) == pytest.approx(r["distance"])
+

@@ -326,8 +326,6 @@ class OfflineRoutingService(RoutingService):
 
                 if i == 0:
                     instruction = f"Head {self._bearing_to_direction(bearing)}"
-                elif i == len(points) - 2:
-                    instruction = "Arrive at destination"
                 else:
                     instruction = f"Continue {self._bearing_to_direction(bearing)}"
 
@@ -341,6 +339,16 @@ class OfflineRoutingService(RoutingService):
                 )
                 steps.append(route_point)
                 total_distance += distance
+
+            # Final step at the destination itself
+            steps.append(RoutePoint(
+                latitude=points[-1][0],
+                longitude=points[-1][1],
+                instruction="Arrive at destination",
+                distance_to_next=0.0,
+                bearing=0.0,
+                turn_type='arrive'
+            ))
 
             # Estimate duration (assume 50 km/h average speed)
             estimated_duration = total_distance / (50 * 1000 / 3600)  # seconds
