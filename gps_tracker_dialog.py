@@ -6,7 +6,7 @@ Provides detailed GPS information, device management, and track recording
 import os
 import csv
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
                            QLabel, QPushButton, QComboBox, QTabWidget, QWidget,
@@ -326,7 +326,7 @@ class TrackingWidget(QWidget):
 
     def add_track_point(self, location_data: Dict):
         """Add a new track point."""
-        if not location_data or not location_data.get('latitude') or not location_data.get('longitude'):
+        if not location_data or location_data.get('latitude') is None or location_data.get('longitude') is None:
             return
 
         # Add to track points
@@ -462,14 +462,15 @@ class TrackingWidget(QWidget):
             f.write('    <trkseg>\n')
 
             for point in self.track_points:
-                if point.get('latitude') and point.get('longitude'):
-                    timestamp = datetime.fromtimestamp(point.get('timestamp', time.time()))
+                if point.get('latitude') is not None and point.get('longitude') is not None:
+                    # GPX times are UTC ('Z'); latitude/longitude 0 are valid positions
+                    timestamp = datetime.fromtimestamp(point.get('timestamp') or time.time(), timezone.utc)
                     f.write(f'      <trkpt lat="{point["latitude"]}" lon="{point["longitude"]}">\n')
 
-                    if point.get('altitude'):
+                    if point.get('altitude') is not None:
                         f.write(f'        <ele>{point["altitude"]}</ele>\n')
 
-                    f.write(f'        <time>{timestamp.isoformat()}Z</time>\n')
+                    f.write(f'        <time>{timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")}</time>\n')
                     f.write('      </trkpt>\n')
 
             f.write('    </trkseg>\n')

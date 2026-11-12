@@ -50,6 +50,18 @@ def test_macbook_server_nmea_checksum_is_valid(tmp_path, monkeypatch):
     assert msg.longitude == pytest.approx(151.2153, abs=1e-5)
 
 
+def test_gpx_track_export_time_is_utc(tmp_path):
+    """GPX <time> ends in Z (UTC), so it must not be local time; points at longitude 0 are kept."""
+    from gps_tracker_dialog import TrackingWidget
+    ts = 1700000000.0
+    fake = SimpleNamespace(track_points=[{"latitude": 51.4779, "longitude": 0.0, "timestamp": ts}])
+    out = tmp_path / "t.gpx"
+    TrackingWidget.export_to_gpx(fake, str(out))
+    text = out.read_text()
+    expected = datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert f"<time>{expected}</time>" in text
+    assert 'lon="0.0"' in text
+
 
 @pytest.mark.parametrize("lat,lon", [(51.4779, -0.0015), (-33.8568, 151.2153), (40.0, -73.99999999)])
 def test_generated_rmc_is_valid_nmea(lat, lon):
