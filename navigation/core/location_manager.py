@@ -23,6 +23,8 @@ from navigation.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+KNOTS_TO_MS = 1852 / 3600  # 1 knot = 1852 m per hour
+
 class LocationProvider:
     """Base class for location providers."""
 
@@ -112,7 +114,8 @@ class GPSProvider(LocationProvider):
                 if msg.status == 'A':  # Valid fix
                     self.current_latitude = float(msg.latitude)
                     self.current_longitude = float(msg.longitude)
-                    self.current_speed = float(msg.spd_over_grnd) if msg.spd_over_grnd else 0
+                    # RMC speed over ground is in knots; the app uses m/s everywhere
+                    self.current_speed = float(msg.spd_over_grnd) * KNOTS_TO_MS if msg.spd_over_grnd else 0
                     self.current_heading = float(msg.true_course) if msg.true_course else 0
 
                     # Create location dict with all available data
