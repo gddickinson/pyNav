@@ -13,6 +13,7 @@ from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor
 
 from navigation.data.database import NavigationDatabase
 from navigation.utils.logger import setup_logger
+from navmath import geo
 
 logger = setup_logger(__name__)
 
@@ -444,25 +445,11 @@ class MapManager(QObject):
 
     def deg2tile(self, lat: float, lon: float, zoom: int) -> Tuple[int, int]:
         """Convert latitude/longitude to tile coordinates."""
-        lat_rad = math.radians(lat)
-        n = 2.0 ** zoom
-        x = int((lon + 180.0) / 360.0 * n)
-        y = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
-        return (x, y)
+        return geo.deg2tile(lat, lon, zoom)
 
     def tile2deg(self, x: int, y: int, zoom: int) -> Tuple[float, float, float, float]:
         """Convert tile coordinates to lat/lon bounds."""
-        n = 2.0 ** zoom
-        lon_deg = x / n * 360.0 - 180.0
-        lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * y / n)))
-        lat_deg = math.degrees(lat_rad)
-
-        # Calculate next tile bounds
-        next_lon_deg = (x + 1) / n * 360.0 - 180.0
-        next_lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n)))
-        next_lat_deg = math.degrees(next_lat_rad)
-
-        return (lon_deg, lat_deg, next_lon_deg, next_lat_deg)  # W, S, E, N
+        return geo.tile2deg(x, y, zoom)
 
     def world_to_screen(self, lat: float, lon: float, viewport_bounds: Tuple[float, float, float, float],
                        width: int, height: int) -> Tuple[float, float]:

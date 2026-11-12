@@ -12,6 +12,8 @@ from PyQt6.QtCore import QObject, pyqtSignal, QThread
 from dataclasses import dataclass
 
 from navigation.utils.logger import setup_logger
+from navmath import route as route_math
+from navmath.geo import bearing_to_direction, haversine_m, initial_bearing_deg
 
 logger = setup_logger(__name__)
 
@@ -300,67 +302,14 @@ class OfflineRoutingService(RoutingService):
         """Calculate basic offline route."""
         try:
             points = [(start_lat, start_lon)]
-
-            # Add waypoints
             if waypoints:
                 points.extend(waypoints)
-
             points.append((end_lat, end_lon))
 
-            # Calculate total distance and create steps
-            steps = []
-            total_distance = 0
-
-            for i in range(len(points) - 1):
-                current = points[i]
-                next_point = points[i + 1]
-
-                distance = self._calculate_distance(
-                    current[0], current[1],
-                    next_point[0], next_point[1]
-                )
-                bearing = self._calculate_bearing(
-                    current[0], current[1],
-                    next_point[0], next_point[1]
-                )
-
-                if i == 0:
-                    instruction = f"Head {self._bearing_to_direction(bearing)}"
-                else:
-                    instruction = f"Continue {self._bearing_to_direction(bearing)}"
-
-                route_point = RoutePoint(
-                    latitude=current[0],
-                    longitude=current[1],
-                    instruction=instruction,
-                    distance_to_next=distance,
-                    bearing=bearing,
-                    turn_type='straight'
-                )
-                steps.append(route_point)
-                total_distance += distance
-
-            # Final step at the destination itself
-            steps.append(RoutePoint(
-                latitude=points[-1][0],
-                longitude=points[-1][1],
-                instruction="Arrive at destination",
-                distance_to_next=0.0,
-                bearing=0.0,
-                turn_type='arrive'
-            ))
-
-            # Estimate duration (assume 50 km/h average speed)
-            estimated_duration = total_distance / (50 * 1000 / 3600)  # seconds
-
-            return {
-                'coordinates': points,
-                'steps': steps,
-                'distance': total_distance,
-                'duration': estimated_duration,
-                'geometry': [[lon, lat] for lat, lon in points],
-                'service': 'Offline'
-            }
+            # Straight legs plus a final 'arrive' step (navmath.route)
+            route = route_math.offline_route(points)
+            route['steps'] = [RoutePoint(**step) for step in route['steps']]
+            return route
 
         except Exception as e:
             logger.error(f"Offline routing error: {e}")
@@ -369,40 +318,16 @@ class OfflineRoutingService(RoutingService):
     def _calculate_distance(self, lat1: float, lon1: float,
                           lat2: float, lon2: float) -> float:
         """Calculate distance using Haversine formula."""
-        R = 6371000  # Earth radius in meters
-
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lat = math.radians(lat2 - lat1)
-        delta_lon = math.radians(lon2 - lon1)
-
-        a = (math.sin(delta_lat / 2) ** 2 +
-             math.cos(lat1_rad) * math.cos(lat2_rad) *
-             math.sin(delta_lon / 2) ** 2)
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-        return R * c
+        return haversine_m(lat1, lon1, lat2, lon2)
 
     def _calculate_bearing(self, lat1: float, lon1: float,
                           lat2: float, lon2: float) -> float:
         """Calculate bearing between two points."""
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lon = math.radians(lon2 - lon1)
-
-        y = math.sin(delta_lon) * math.cos(lat2_rad)
-        x = (math.cos(lat1_rad) * math.sin(lat2_rad) -
-             math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(delta_lon))
-
-        bearing = math.atan2(y, x)
-        return (math.degrees(bearing) + 360) % 360
+        return initial_bearing_deg(lat1, lon1, lat2, lon2)
 
     def _bearing_to_direction(self, bearing: float) -> str:
         """Convert bearing to compass direction."""
-        directions = ["North", "Northeast", "East", "Southeast",
-                     "South", "Southwest", "West", "Northwest"]
-        index = int((bearing + 22.5) / 45) % 8
-        return directions[index]
+        return bearing_to_direction(bearing)
 
 class RouteCalculationThread(QThread):
     """Background thread for route calculation."""
@@ -542,102 +467,42 @@ class RoutingEngine(QObject):
         if not self.is_navigating or not self.current_route:
             return
 
-        current_lat = location['latitude']
-        current_lon = location['longitude']
-
-        # Find closest point on route
-        closest_distance = float('inf')
-        closest_step_index = self.current_step_index
-
         steps = self.current_route['steps']
+        progress = route_math.route_progress(steps, self.current_step_index,
+                                             location['latitude'], location['longitude'])
+        self.current_step_index = progress['step_index']
 
-        # Check current and next few steps
-        for i in range(max(0, self.current_step_index - 1),
-                      min(len(steps), self.current_step_index + 5)):
-            step = steps[i]
-            distance = self._calculate_distance(
-                current_lat, current_lon,
-                step.latitude, step.longitude
-            )
-
-            if distance < closest_distance:
-                closest_distance = distance
-                closest_step_index = i
-
-        # Update step if we've moved to a new one
-        if closest_step_index > self.current_step_index:
-            self.current_step_index = closest_step_index
-
-        # Prepare navigation update
         current_step = steps[self.current_step_index] if self.current_step_index < len(steps) else None
         next_step = steps[self.current_step_index + 1] if self.current_step_index + 1 < len(steps) else None
-
-        # Calculate distance to next turn
-        distance_to_turn = 0
-        if current_step:
-            distance_to_turn = self._calculate_distance(
-                current_lat, current_lon,
-                current_step.latitude, current_step.longitude
-            )
 
         nav_update = {
             'current_step': current_step,
             'next_step': next_step,
             'step_index': self.current_step_index,
             'total_steps': len(steps),
-            'distance_to_turn': distance_to_turn,
-            'distance_remaining': self._calculate_remaining_distance(current_lat, current_lon),
-            'time_remaining': self._calculate_remaining_time(current_lat, current_lon)
+            'distance_to_turn': progress['distance_to_turn'],
+            'distance_remaining': progress['distance_remaining'],
+            'time_remaining': progress['time_remaining']
         }
 
         self.navigation_update.emit(nav_update)
 
     def _calculate_distance(self, lat1: float, lon1: float,
                           lat2: float, lon2: float) -> float:
-        """Calculate distance between two points."""
-        R = 6371000  # Earth radius in meters
-
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lat = math.radians(lat2 - lat1)
-        delta_lon = math.radians(lon2 - lon1)
-
-        a = (math.sin(delta_lat / 2) ** 2 +
-             math.cos(lat1_rad) * math.cos(lat2_rad) *
-             math.sin(delta_lon / 2) ** 2)
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-        return R * c
+        """Calculate distance using Haversine formula."""
+        return haversine_m(lat1, lon1, lat2, lon2)
 
     def _calculate_remaining_distance(self, current_lat: float, current_lon: float) -> float:
         """Calculate remaining distance to destination."""
         if not self.current_route or not self.current_route['steps']:
             return 0
-
-        remaining_distance = 0
-        steps = self.current_route['steps']
-
-        # Distance from current position to current step
-        if self.current_step_index < len(steps):
-            current_step = steps[self.current_step_index]
-            remaining_distance += self._calculate_distance(
-                current_lat, current_lon,
-                current_step.latitude, current_step.longitude
-            )
-
-        # Add remaining step distances
-        for i in range(self.current_step_index, len(steps) - 1):
-            remaining_distance += steps[i].distance_to_next
-
-        return remaining_distance
+        return route_math.remaining_distance(self.current_route['steps'], self.current_step_index,
+                                             current_lat, current_lon)
 
     def _calculate_remaining_time(self, current_lat: float, current_lon: float) -> float:
-        """Estimate remaining time to destination."""
+        """Estimate remaining time to destination (at an assumed 50 km/h average)."""
         remaining_distance = self._calculate_remaining_distance(current_lat, current_lon)
-
-        # Estimate based on average speed (assuming 50 km/h in city, 80 km/h highway)
-        average_speed = 50 * 1000 / 3600  # m/s
-        return remaining_distance / average_speed
+        return remaining_distance / (route_math.OFFLINE_SPEED_KMH * 1000 / 3600)
 
     def get_route_summary(self) -> Optional[Dict]:
         """Get summary of current route."""

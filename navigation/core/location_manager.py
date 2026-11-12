@@ -21,9 +21,11 @@ except ImportError:
 
 from navigation.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
+from navmath.geo import estimate_gps_accuracy, haversine_m
+from navmath.nmea import KNOTS_TO_MS
+from navmath.ports import candidate_serial_ports
 
-KNOTS_TO_MS = 1852 / 3600  # 1 knot = 1852 m per hour
+logger = setup_logger(__name__)
 
 class LocationProvider:
     """Base class for location providers."""
@@ -172,46 +174,8 @@ class GPSProvider(LocationProvider):
         return self.last_location
 
     def _estimate_accuracy(self) -> float:
-        """Estimate GPS accuracy based on fix quality, satellites, and HDOP."""
-        if self.fix_quality == 0:
-            return 999  # No fix
-
-        # Base accuracy estimate from fix quality
-        if self.fix_quality == 1:
-            base_accuracy = 5.0  # Standard GPS
-        elif self.fix_quality == 2:
-            base_accuracy = 2.0  # Differential GPS
-        elif self.fix_quality >= 3:
-            base_accuracy = 1.0  # RTK or other high-precision
-        else:
-            base_accuracy = 10.0
-
-        # Adjust based on number of satellites
-        if self.satellites >= 8:
-            sat_multiplier = 0.8
-        elif self.satellites >= 6:
-            sat_multiplier = 1.0
-        elif self.satellites >= 4:
-            sat_multiplier = 1.5
-        else:
-            sat_multiplier = 3.0
-
-        # Adjust based on HDOP (Horizontal Dilution of Precision)
-        if self.hdop > 0:
-            if self.hdop < 2:
-                hdop_multiplier = 1.0  # Excellent
-            elif self.hdop < 5:
-                hdop_multiplier = 1.2  # Good
-            elif self.hdop < 10:
-                hdop_multiplier = 1.5  # Moderate
-            elif self.hdop < 20:
-                hdop_multiplier = 2.0  # Fair
-            else:
-                hdop_multiplier = 3.0  # Poor
-        else:
-            hdop_multiplier = 1.0
-
-        return base_accuracy * sat_multiplier * hdop_multiplier
+        """Estimate GPS accuracy based on fix quality, satellites, and HDOP (navmath.geo)."""
+        return estimate_gps_accuracy(self.fix_quality, self.satellites, self.hdop)
 
 class IPLocationProvider(LocationProvider):
     """IP-based location provider with multiple fallback services."""
@@ -403,22 +367,7 @@ class LocationManager(QObject):
         devices = []
 
         try:
-            system = platform.system()
-            if system == 'Darwin':  # macOS
-                patterns = ['/dev/tty.usbmodem*', '/dev/tty.usbserial*', '/dev/tty.SLAB_*']
-                for pattern in patterns:
-                    devices.extend(glob.glob(pattern))
-            elif system == 'Linux':
-                patterns = ['/dev/ttyUSB*', '/dev/ttyACM*', '/dev/ttyS*']
-                for pattern in patterns:
-                    devices.extend(glob.glob(pattern))
-            elif system == 'Windows':
-                try:
-                    import serial.tools.list_ports
-                    ports = serial.tools.list_ports.comports()
-                    devices = [port.device for port in ports]
-                except ImportError:
-                    logger.warning("pyserial not available for Windows COM port detection")
+            devices = candidate_serial_ports()
 
             # Test each device for GPS data
             for device in devices:
@@ -519,19 +468,7 @@ class LocationManager(QObject):
     def calculate_distance(self, lat1: float, lon1: float,
                           lat2: float, lon2: float) -> float:
         """Calculate distance between two points in meters using Haversine formula."""
-        R = 6371000  # Earth's radius in meters
-
-        lat1_rad = math.radians(lat1)
-        lat2_rad = math.radians(lat2)
-        delta_lat = math.radians(lat2 - lat1)
-        delta_lon = math.radians(lon2 - lon1)
-
-        a = (math.sin(delta_lat / 2) ** 2 +
-             math.cos(lat1_rad) * math.cos(lat2_rad) *
-             math.sin(delta_lon / 2) ** 2)
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-        return R * c
+        return haversine_m(lat1, lon1, lat2, lon2)
 
     def get_location_history(self) -> List[Dict]:
         """Get recent location history."""
